@@ -29,10 +29,18 @@ def listar_produtos(
 
     produtos = query.offset(skip).limit(limit).all()
 
-    resultado = []
-    for p in produtos:
-        media = _calcular_media(p.id_produto, db)
-        produto_dict = {
+    ids = [p.id_produto for p in produtos]
+    medias = (
+        db.query(ItemPedido.id_produto, func.avg(AvaliacaoPedido.avaliacao))
+        .join(AvaliacaoPedido, AvaliacaoPedido.id_pedido == ItemPedido.id_pedido)
+        .filter(ItemPedido.id_produto.in_(ids))
+        .group_by(ItemPedido.id_produto)
+        .all()
+    )
+    medias_dict = {id_produto: round(media, 2) for id_produto, media in medias}
+
+    return [
+        {
             "id_produto": p.id_produto,
             "nome_produto": p.nome_produto,
             "categoria_produto": p.categoria_produto,
@@ -40,11 +48,10 @@ def listar_produtos(
             "comprimento_centimetros": p.comprimento_centimetros,
             "altura_centimetros": p.altura_centimetros,
             "largura_centimetros": p.largura_centimetros,
-            "media_avaliacoes": media,
+            "media_avaliacoes": medias_dict.get(p.id_produto),
         }
-        resultado.append(produto_dict)
-
-    return resultado
+        for p in produtos
+    ]
 
 
 @router.get("/{id_produto}", response_model=ProdutoResponse)
